@@ -44,29 +44,70 @@ def prioritize_symptoms(symptoms_list, default_weights):
 def _calculate_if_then_branch(weighted_symptoms, rules):
     """
     Branch 1: Execute IF-THEN Diagnostic Rules
-    Mock engine to map rules against symptoms
+    Updated to respect symptom severity sliders.
     """
     scores = {}
-    symptom_names = [s["name"] for s in weighted_symptoms]
     
-    # Very basic static rules fallback if the database has none
+    # Fallback rules if DB is empty
     if not rules:
         rules = [
-            {"disease_id": "D1", "disease_name": "Flu", "conditions": ["Fever", "Cough"]},
-            {"disease_id": "D2", "disease_name": "Migraine", "conditions": ["Headache", "Nausea"]},
-            {"disease_id": "D3", "disease_name": "COVID-19", "conditions": ["Fever", "Cough", "Shortness of Breath", "Fatigue"]}
+            {"disease_id": "D1", "disease_name": "Flu", "required_symptoms": ["Fever", "Cough"]},
+            {"disease_id": "D2", "disease_name": "Migraine", "required_symptoms": ["Headache", "Nausea"]},
+            {"disease_id": "D3", "disease_name": "COVID-19", "required_symptoms": ["Fever", "Cough", "Shortness of Breath", "Fatigue"]}
         ]
         
     for rule in rules:
-        # A simple condition check (e.g., matching condition array vs actual array)
         conditions = rule.get("required_symptoms", [])
         disease = rule.get("disease_name")
         
-        match_count = sum([1 for c in conditions if c in symptom_names])
-        if match_count > 0:
-            # Score logic: percentage of rule conditions matched
-            score = (match_count / len(conditions)) * 100
-            scores[disease] = score
+        # Calculate score based on the SUM of severity (0.5 to 2.0) for matching symptoms
+        match_score = sum([s["calculated_severity"] for s in weighted_symptoms if s["name"] in conditions])
+        
+        if match_score > 0:
+            # max_possible = number of symptoms in rule * max weight (2.0)
+            max_possible = len(conditions) * 2.0
+            score = (match_score / max_possible) * 100
+            scores[disease] = round(score, 2)
+            
+    return scores
+
+def _calculate_bayesian_branch(weighted_symptoms, prob_table):
+    """
+    Branch 2: Execute Bayesian Probability calculations.
+    Updated: Severity now acts as a weight multiplier for likelihood.
+    """
+    scores = {}
+    
+    # Mock base prior probabilities
+    priors = {"Flu": 0.1, "Migraine": 0.05, "COVID-19": 0.15, "Common Cold": 0.3}
+    
+    # Fallback table if DB is empty
+    if not prob_table:
+         prob_table = [
+            {"symptom": "Fever", "Flu": {"sensitivity": 0.8}, "COVID-19": {"sensitivity": 0.9}},
+            {"symptom": "Cough", "Flu": {"sensitivity": 0.7}, "COVID-19": {"sensitivity": 0.8}},
+            {"symptom": "Headache", "Migraine": {"sensitivity": 0.9}}
+         ]
+         
+    for disease, prior in priors.items():
+        posterior = prior
+        
+        for s in weighted_symptoms:
+            symp = s["name"]
+            # The slider multiplier (0.5 for Low, 1.0 for Medium, 1.5 for High, 2.0 for Critical)
+            sev_weight = s["calculated_severity"] 
+            
+            for pt in prob_table:
+                if pt.get("symptom") == symp:
+                    disease_data = pt.get(disease)
+                    sensitivity = disease_data.get("sensitivity", 0.01) if isinstance(disease_data, dict) else 0.01
+                    
+                    # Math: Likelihood is boosted by the severity of the symptom
+                    posterior *= (float(sensitivity) * sev_weight)
+        
+        # Scaling factor for UI visibility
+        if posterior > prior: 
+            scores[disease] = min(posterior * 500.0, 100.0) 
             
     return scores
 
@@ -113,7 +154,7 @@ def _calculate_bayesian_branch(weighted_symptoms, prob_table):
     return scores
     
 def _merge_and_normalize(if_then_scores, bayesian_scores):
-    """Merges logic from the two branches."""
+    """Merges logic from the two branches and caps the result."""
     final_scores = {}
     all_diseases = set(list(if_then_scores.keys()) + list(bayesian_scores.keys()))
     
@@ -121,9 +162,11 @@ def _merge_and_normalize(if_then_scores, bayesian_scores):
         if_score = if_then_scores.get(disease, 0)
         bayes_score = bayesian_scores.get(disease, 0)
         
-        # Simple weighted average
-        # E.g. 60% weight to IF-THEN, 40% weight to Bayesian
-        final_scores[disease] = round((if_score * 0.6) + (bayes_score * 0.4), 2)
+        # Calculate the weighted average
+        combined_score = (if_score * 0.6) + (bayes_score * 0.4)
+        
+        # FIX: min(..., 100.0) prevents the score from ever exceeding 100%
+        final_scores[disease] = round(min(combined_score, 100.0), 2)
         
     return final_scores
 
