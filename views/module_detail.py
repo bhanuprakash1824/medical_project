@@ -52,4 +52,4 @@ END;
 
     if st.button("⬅ Back to Modules"):
         st.session_state.view = "modules"
-        st.rerun()
+        st.experimental_rerun()
