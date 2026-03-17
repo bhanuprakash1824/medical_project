@@ -1,2 +1,3 @@
-.myenv/
-secrets.toml
+# Hide Streamlit secrets everywhere
+**/.streamlit/secrets.toml
+**/secrets.toml

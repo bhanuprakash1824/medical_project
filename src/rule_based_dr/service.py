@@ -59,7 +59,7 @@ def _calculate_if_then_branch(weighted_symptoms, rules):
         
     for rule in rules:
         # A simple condition check (e.g., matching condition array vs actual array)
-        conditions = rule.get("conditions", [])
+        conditions = rule.get("required_symptoms", [])
         disease = rule.get("disease_name")
         
         match_count = sum([1 for c in conditions if c in symptom_names])
