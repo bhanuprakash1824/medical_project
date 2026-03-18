@@ -68,6 +68,49 @@ def _calculate_if_then_branch(weighted_symptoms, rules):
             max_possible = len(conditions) * 2.0
             score = (match_score / max_possible) * 100
             scores[disease] = round(score, 2)
+<<<<<<< HEAD
+=======
+            
+    return scores
+
+def _calculate_bayesian_branch(weighted_symptoms, prob_table):
+    """
+    Branch 2: Execute Bayesian Probability calculations.
+    Updated: Severity now acts as a weight multiplier for likelihood.
+    """
+    scores = {}
+    
+    # Mock base prior probabilities
+    priors = {"Flu": 0.1, "Migraine": 0.05, "COVID-19": 0.15, "Common Cold": 0.3}
+    
+    # Fallback table if DB is empty
+    if not prob_table:
+         prob_table = [
+            {"symptom": "Fever", "Flu": {"sensitivity": 0.8}, "COVID-19": {"sensitivity": 0.9}},
+            {"symptom": "Cough", "Flu": {"sensitivity": 0.7}, "COVID-19": {"sensitivity": 0.8}},
+            {"symptom": "Headache", "Migraine": {"sensitivity": 0.9}}
+         ]
+         
+    for disease, prior in priors.items():
+        posterior = prior
+        
+        for s in weighted_symptoms:
+            symp = s["name"]
+            # The slider multiplier (0.5 for Low, 1.0 for Medium, 1.5 for High, 2.0 for Critical)
+            sev_weight = s["calculated_severity"] 
+            
+            for pt in prob_table:
+                if pt.get("symptom") == symp:
+                    disease_data = pt.get(disease)
+                    sensitivity = disease_data.get("sensitivity", 0.01) if isinstance(disease_data, dict) else 0.01
+                    
+                    # Math: Likelihood is boosted by the severity of the symptom
+                    posterior *= (float(sensitivity) * sev_weight)
+        
+        # Scaling factor for UI visibility
+        if posterior > prior: 
+            scores[disease] = min(posterior * 500.0, 100.0) 
+>>>>>>> 2fe0b48aca3018b8559d6ce167a36880ce7d75f4
             
     return scores
 
