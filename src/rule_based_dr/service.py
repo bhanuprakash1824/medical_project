@@ -41,10 +41,10 @@ def prioritize_symptoms(symptoms_list, default_weights):
         
     return weighted_symptoms
 
-def _calculate_if_then_branch(weighted_symptoms, rules):
+def _calculate_if_then_branch(weighted_symptoms, rules, all_weights):
     """
     Branch 1: Execute IF-THEN Diagnostic Rules
-    Updated to respect symptom severity sliders.
+    Updated: max_possible dynamically sums (base_weight * 2.0) for required symptoms.
     """
     scores = {}
     
@@ -56,19 +56,24 @@ def _calculate_if_then_branch(weighted_symptoms, rules):
             {"disease_id": "D3", "disease_name": "COVID-19", "required_symptoms": ["Fever", "Cough", "Shortness of Breath", "Fatigue"]}
         ]
         
+    # Quick lookup dictionary for base weights (defaults to 1.0 if not found)
+    weight_lookup = {w.get("symptom_name"): w.get("weight_value", 1.0) for w in all_weights} if all_weights else {}
+
     for rule in rules:
         conditions = rule.get("required_symptoms", [])
         disease = rule.get("disease_name")
         
-        # Calculate score based on the SUM of severity (0.5 to 2.0) for matching symptoms
+        # Calculate score based on the patient's actual reported symptoms
         match_score = sum([s["calculated_severity"] for s in weighted_symptoms if s["name"] in conditions])
         
         if match_score > 0:
-            # max_possible = number of symptoms in rule * max weight (2.0)
-            max_possible = len(conditions) * 2.0
-            score = (match_score / max_possible) * 100
-            scores[disease] = round(score, 2)
+            # THE FIX: Calculate true perfect score using specific base weights * 2.0 (Critical max)
+            max_possible = sum([weight_lookup.get(symp, 1.0) * 2.0 for symp in conditions])
             
+            if max_possible > 0:
+                score = (match_score / max_possible) * 100
+                scores[disease] = round(score, 2)
+                
     return scores
 
 def _calculate_bayesian_branch(weighted_symptoms, prob_table):
@@ -172,7 +177,7 @@ def run_diagnostic_flow(patient_data: dict, symptoms_list: list):
     weighted_symptoms = prioritize_symptoms(symptoms_list, weights)
     
     # 3. Inference Engine (Parallel Branches)
-    if_then_scores = _calculate_if_then_branch(weighted_symptoms, rules)
+    if_then_scores = if_then_scores = _calculate_if_then_branch(weighted_symptoms, rules, weights)
     bayesian_scores = _calculate_bayesian_branch(weighted_symptoms, probabilities)
     
     # Normalize
